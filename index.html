@@ -69,7 +69,8 @@ body.rot #market{position:absolute}
 #market .mh b{font-family:var(--disp);font-weight:400;font-size:24px}
 #market .mh .lbl{flex:1;min-width:0;text-transform:none;letter-spacing:0;font-size:12px}
 #mkX{width:42px;height:42px;border:1px solid var(--line);background:rgba(255,255,255,.08);font-size:20px;border-radius:8px}
-#mkTabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;flex:none;touch-action:pan-x}
+#mkTabs{display:flex;flex-wrap:wrap;gap:6px;overflow-y:auto;max-height:88px;padding-bottom:4px;flex:none;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+#mkF{display:flex;gap:8px;flex-wrap:wrap;flex:none}#mkF label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}#mkF select{background:#16181c;color:var(--fg);border:1px solid var(--line);padding:7px;font-size:14px;min-width:150px}
 #mkTabs button{flex:none;display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:13px;white-space:nowrap}
 #mkTabs button[aria-pressed="true"]{border-color:var(--accent);background:rgba(240,165,53,.15)}
 #mkTabs button i{display:block;width:34px;height:14px;color:var(--fg)}
@@ -363,6 +364,9 @@ body.rot .sheet{position:absolute}
 @media (max-width:640px){.skd-top{grid-template-columns:1fr}}
 .sr{display:grid;grid-template-columns:minmax(140px,1fr) minmax(120px,2fr) 60px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.sr select{background:#16181c;color:var(--fg);border:1px solid var(--line);padding:6px;grid-column:2/4}.sr b{font-family:var(--mono);text-align:right}
 #fpsC{position:fixed;left:8px;bottom:6px;z-index:70;font:12px var(--mono);color:#7dff9a;background:rgba(0,0,0,.5);padding:2px 6px;pointer-events:none}
+#chatBox{position:fixed;left:max(10px,env(safe-area-inset-left,0px));bottom:30%;width:min(360px,45vw);z-index:9;pointer-events:none;font-size:13px}#chatLog div{background:rgba(0,0,0,.45);padding:2px 6px;margin-top:2px;text-shadow:0 1px 1px #000}#chatLog .sys{opacity:.75;font-style:italic}#chatLog b.ct{color:#8fb8ff}#chatLog b.t{color:#ffc97a}
+#chatIn{pointer-events:auto;width:100%;margin-top:4px;background:rgba(10,10,12,.85);border:1px solid var(--accent);color:var(--fg);padding:7px;font-size:14px}
+#talkI{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:9;background:rgba(56,193,114,.85);color:#06180c;padding:4px 10px;font-weight:700}
 #menu .back{align-self:flex-start;padding:8px 14px;border:1px solid var(--line);background:rgba(255,255,255,.05)}
 
 @media (prefers-reduced-motion:reduce){#banner,#dmg,#hitm{transition:none}}
@@ -410,6 +414,7 @@ body.rot .sheet{position:absolute}
   <div class="tb" id="tGear">⚙</div>
   <div class="tb" id="tUse">E</div>
   <div class="tb" id="tBoard" aria-label="Статистика">☰</div>
+  <div class="tb" id="tChat" aria-label="Чат">💬</div><div class="tb" id="tPing" aria-label="Метка">📍</div><div class="tb" id="tVoice" aria-label="Голос">🎙</div>
 </div>
 
 <div id="buy" hidden>
@@ -584,6 +589,7 @@ body.rot .sheet{position:absolute}
 <div id="banned" hidden><div><b>Аккаунт заблокирован</b><p>Причина: <span id="banR"></span></p><p class="note">Если это ошибка — напиши администратору в Telegram.</p></div></div>
 <div id="settings" class="sheet" hidden><div class="mh"><b>Настройки</b><span class="sp"></span><button class="x" data-close aria-label="Закрыть">✕</button></div><div class="body" id="setB"></div></div>
 <div id="fpsC" hidden></div>
+<div id="chatBox"><div id="chatLog"></div><input id="chatIn" hidden maxlength="120" autocomplete="off"></div><div id="talkI" hidden>🎙 говоришь</div>
 <div id="toast"></div>
 
 <div id="market" hidden>
@@ -1749,7 +1755,7 @@ function damage(v,amt,att,head,wid,wb){
   if(att!==C4&&att.team!==v.team){att.kills++;if(att.isPlayer)safe(()=>onPlayerKill(wid,head,!onGround,wb),'stat');att.money=Math.min(16000,att.money+W[wid].kill);if(isTDM())score[att.team]++}
   if(bomb.carrier===v){bomb.carrier=null;bomb.plantP=0;if(state!=='end'){bomb.dropped=true;bomb.pos.set(v.pos.x,groundAt(v.pos.x,v.pos.z),v.pos.z);bombMesh.position.copy(bomb.pos);bombMesh.visible=true}}
   if(bomb.defuser===v){bomb.defuser=null;bomb.defP=0}
-  feed(att,v,wid,head,att.isPlayer?!onGround:false,wb);
+  feed(att,v,wid,head,att.isPlayer?!onGround:false,wb);if(Math.random()<.25&&att!==C4&&!att.isPlayer)botSay('kill',att.team,att);else if(Math.random()<.2&&!v.isPlayer)botSay('die',v.team,v.alive?v:null);
   if(v.isPlayer){scopeLvl=0;pickSpec();useHeld=false;if(NET.inMatch)netDie(att,wid,head,wb)}
   if(spec===v)pickSpec();
   if(isTDM()&&score[att.team]>=(NET.inMatch?NET.netFrags:TDM_FRAGS)){matchOver();return}
@@ -2124,7 +2130,7 @@ function render(game){
   if(vm.visible)safe(()=>updViewmodel(frameDt,a,w),'vmupd');
   agents.forEach(b=>{if(b.mesh)b.mesh.visible=b!==spec||a.alive});
  }
- sky.position.copy(cam.position);safe(()=>updShells(frameDt),'shells');
+ safe(updPings,'pings');sky.position.copy(cam.position);safe(()=>updShells(frameDt),'shells');
  renderer.clear();renderer.render(scene,cam);
  if(game&&vm.visible){renderer.clearDepth();renderer.render(vmScene,vmCam)}
 }
@@ -2218,7 +2224,7 @@ function drawMiniBase(){const c=document.createElement('canvas');c.width=c.heigh
  for(let z=0;z<world.h;z++)for(let x=0;x<world.w;x++){const h=cellH(x,z);if(h&&world.elev[z*world.w+x]){g.fillStyle='rgba(230,200,150,.45)';g.fillRect(x*s,z*s,s+.5,s+.5)}else if(h&&world.mat[z*world.w+x]===4){g.fillStyle='rgba(176,120,64,.9)';g.fillRect(x*s,z*s,s+.5,s+.5)}else if(h){g.fillStyle=h>=WALL_H?'rgba(220,214,200,.75)':h===CONT_H?'rgba(90,120,150,.85)':'rgba(170,120,60,.8)';g.fillRect(x*s,z*s,s+.5,s+.5)}else if(world.roof[z*world.w+x]){g.fillStyle='rgba(0,0,0,.35)';g.fillRect(x*s,z*s,s+.5,s+.5)}}
  for(const[x,z]of world.sites){g.fillStyle='rgba(190,40,30,.18)';g.fillRect(x*s,z*s,s+.5,s+.5)}
  miniBase=c}
-function drawMini(){if(!miniBase)return;mg.clearRect(0,0,264,264);mg.drawImage(miniBase,0,0);const s=264/Math.max(world.w,world.h)/CS;
+function drawMini(){if(!miniBase)return;mg.clearRect(0,0,264,264);mg.drawImage(miniBase,0,0);const s=264/Math.max(world.w,world.h)/CS;drawPingsMini(s);
  for(const a of agents){if(!a.alive)continue;const mine=a.team===player.team;if(!mine&&a.spot<clock)continue;
   mg.fillStyle=a.isPlayer?'#fff':(a.team==='CT'?'#6c9ee0':'#e0a94a');if(!mine)mg.fillStyle='#e5513b';
   mg.beginPath();mg.arc(a.pos.x*s,a.pos.z*s,a.isPlayer?5:4,0,7);mg.fill();
@@ -2276,8 +2282,8 @@ addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='Tab')showBoard(fals
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;firing=false});
 
 // touch + layout editor
-const DEF={tFire:{x:.88,y:.64,s:88},tFire2:{x:.07,y:.42,s:62},tScope:{x:.75,y:.45,s:58},tJump:{x:.76,y:.82,s:58},tReload:{x:.94,y:.34,s:50},tSwap:{x:.63,y:.68,s:50},tBuy:{x:.3,y:.1,s:46},tGear:{x:.38,y:.1,s:40},tCrouch:{x:.89,y:.9,s:52},tUse:{x:.55,y:.88,s:54},tBoard:{x:.62,y:.1,s:40},joy:{x:.15,y:.7,s:130},float:true};
-const LBL={tFire:'Огонь',tFire2:'Огонь (левый)',tScope:'Зум',tJump:'Прыжок',tReload:'Перезарядка',tSwap:'Смена оружия',tBuy:'Магазин',tCrouch:'Присед',tUse:'Бомба (E)',tBoard:'Статистика',tGear:'Настройки',joy:'Джойстик'};
+const DEF={tFire:{x:.88,y:.64,s:88},tFire2:{x:.07,y:.42,s:62},tScope:{x:.75,y:.45,s:58},tJump:{x:.76,y:.82,s:58},tReload:{x:.94,y:.34,s:50},tSwap:{x:.63,y:.68,s:50},tBuy:{x:.3,y:.1,s:46},tGear:{x:.38,y:.1,s:40},tCrouch:{x:.89,y:.9,s:52},tUse:{x:.55,y:.88,s:54},tBoard:{x:.62,y:.1,s:40},tChat:{x:.46,y:.1,s:40},tPing:{x:.54,y:.1,s:40},tVoice:{x:.7,y:.1,s:40},joy:{x:.15,y:.7,s:130},float:true};
+const LBL={tFire:'Огонь',tFire2:'Огонь (левый)',tScope:'Зум',tJump:'Прыжок',tReload:'Перезарядка',tSwap:'Смена оружия',tBuy:'Магазин',tCrouch:'Присед',tUse:'Бомба (E)',tBoard:'Статистика',tChat:'Чат',tPing:'Метка',tVoice:'Голос (держать)',tGear:'Настройки',joy:'Джойстик'};
 let LAY=JSON.parse(JSON.stringify(DEF));try{const v=JSON.parse(localStorage.getItem('sector-layout')||'null');if(v&&v.tFire)LAY=Object.assign(LAY,v)}catch(e){}
 const saveLay=()=>{try{localStorage.setItem('sector-layout',JSON.stringify(LAY))}catch(e){}};
 let editSel=null,editRet='menu';
@@ -2312,6 +2318,8 @@ tl.addEventListener('touchstart',e=>{e.preventDefault();audioInit();
   else if(id==='tBuy'){$('#buy').hidden?openBuy():closeBuy()}
   else if(id==='tGear')openEdit('game');
   else if(id==='tBoard')showBoard($('#board').hidden);
+  else if(id==='tChat')openChat(true);else if(id==='tPing')placePing();
+  else if(id==='tVoice'){if(!VOICE.on)voiceToggle();else{voiceTalk(true);touches[t.identifier]={r:'voice'}}}
   else if(p.x<SW*.42&&!Object.values(touches).some(o=>o.r==='joy')){const L=LAY.joy,ox=LAY.float?p.x:L.x*SW,oy=LAY.float?p.y:L.y*SH;touches[t.identifier]={r:'joy',ox,oy};
    joyEl.style.display='block';joyEl.style.left=ox+'px';joyEl.style.top=oy+'px';if(!LAY.float)moveJoy(touches[t.identifier],p)}
   else{touches[t.identifier]={r:'look',x:p.x,y:p.y};if(!player.alive)pickSpec()}}},{passive:false});
@@ -2320,7 +2328,7 @@ tl.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedT
  if(s.r==='drag'){const L=LAY[s.id];L.x=clamp((p.x-s.dx)/SW,.03,.97);L.y=clamp((p.y-s.dy)/SH,.04,.96);applyLayout()}
  else if(s.r==='joy')moveJoy(s,p);
  else{const _w=player&&player.slots[player.cur]&&W[player.slots[player.cur].id],_k=scopeLvl?(_w&&_w.scope?SET.sScope:SET.sAim)*cam.fov/SET.fov:1,sens=.0055*_k*SET.tsx,sensY=.0055*_k*SET.tsy*(SET.inv?-1:1);swayX=clamp(swayX+(p.x-s.x)*.0004,-.04,.04);swayY=clamp(swayY-(p.y-s.y)*.0004,-.04,.04);player.yaw-=(p.x-s.x)*sens;player.pitch=clamp(player.pitch-(p.y-s.y)*sensY,-1.5,1.5);s.x=p.x;s.y=p.y}}},{passive:false});
-const tEnd=e=>{for(const t of e.changedTouches){const s=touches[t.identifier];if(!s)continue;delete touches[t.identifier];
+const tEnd=e=>{for(const t of e.changedTouches){const s=touches[t.identifier];if(!s)continue;delete touches[t.identifier];if(s.r==='voice'){voiceTalk(false);continue}
  if(s.jump&&!Object.values(touches).some(o=>o.jump))keys.Space=false;
  if(s.use&&!Object.values(touches).some(o=>o.use)){useHeld=false;$('#tUse').classList.remove('on')}
  if(s.r==='joy'){joy.x=joy.y=0;knob.style.transform='translate(-50%,-50%)';if(LAY.float){joyEl.style.display='none'}else{joyEl.style.left=LAY.joy.x*100+'%';joyEl.style.top=LAY.joy.y*100+'%'}}
@@ -2339,7 +2347,7 @@ function startGame(){try{startGame0()}catch(e){errBox(e,'start');mode='game';$('
 function startGame0(){audioInit();fpsDone=false;fpsT=0;fpsF=0;applyQ(cfgQ==='auto'?(isTouch?'low':'med'):cfgQ);if(isTouch){try{const r=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(r&&r.then)r.then(()=>screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape')).catch(()=>{}).catch(()=>{})}catch(e){}}stopVote();buildMap(cfgMap);mode='game';$('#menu').hidden=true;$('#lobby').hidden=true;hideSheets();MS={k:0,hs:0,knife:0,air:0,wb:0,wk:{}};$('#end').hidden=true;$('#hud').hidden=false;$('#touch').hidden=!isTouch;newMatch();applyLayout();tryLock()}
 $('#go').onclick=startGame;
 $('#again').onclick=()=>{if(VOTE&&!VOTE.done)finishVote();stopVote();startGame()};
-$('#toMenu').onclick=()=>{stopVote();NET.inMatch=false;mode='menu';$('#end').hidden=true;$('#hud').hidden=true;$('#touch').hidden=true;if(NET.r){openSheet('#online');renderOnline()}else showLobby();safe(()=>buildMap(cfgMap),'map');agents.forEach(a=>a.mesh&&scene.remove(a.mesh));agents=[];vm.visible=false};
+$('#toMenu').onclick=()=>{stopVote();voiceStop();COMM.log=[];NET.inMatch=false;mode='menu';$('#end').hidden=true;$('#hud').hidden=true;$('#touch').hidden=true;if(NET.r){openSheet('#online');renderOnline()}else showLobby();safe(()=>buildMap(cfgMap),'map');agents.forEach(a=>a.mesh&&scene.remove(a.mesh));agents=[];vm.visible=false};
 function matchOver(){if(mode==='over')return;mode='over';if(document.pointerLockElement)document.exitPointerLock();firing=false;
  const me=score[player.team],en=score[player.team==='CT'?'T':'CT'],win=me>en,draw=me===en;$('#endSub').textContent=isTDM()?'Командный бой окончен':'Матч окончен';$('#endTitle').textContent=draw?'Ничья':win?'Победа':'Поражение';$('#endTitle').style.color=draw?'var(--fg)':win?'var(--accent)':'var(--danger)';useHeld=false;
  $('#endScore').innerHTML=`<span class="ct">КТ ${score.CT}</span> : <span class="t">${score.T} Т</span>`;
@@ -2367,7 +2375,7 @@ $('#lbNick').addEventListener('keydown',e=>{if(e.key==='Enter')e.target.blur()})
 $('#lbIdL').onclick=()=>{try{navigator.clipboard.writeText(PROF.sid);toast('ID скопирован: '+PROF.sid)}catch(e){toast('Твой ID: '+PROF.sid)}};
 $('#lbMode').onclick=()=>openSheet('#menu');
 $('#lbGo').onclick=()=>startGame();
-function goTo(v){if(v==='home')return showLobby();if(v==='inv'){mkMine=true;mkW='*';openSheet('#market');renderMarket()}else if(v==='market'){mkMine=false;if(mkW==='*')mkW='ak';openSheet('#market');renderMarket()}
+function goTo(v){if(v==='home')return showLobby();if(v==='inv'){mkMine=true;mkW='*';openSheet('#market');renderMarket()}else if(v==='market'){mkMine=false;if(mkW==='*')mkW='all';openSheet('#market');renderMarket()}
  else if(v==='cases'){openSheet('#cases');renderCases()}else if(v==='stats'){openSheet('#stats');renderStats()}else if(v==='offers'){openSheet('#offers');renderOffers()}
  else if(v==='xh')openXh('menu');else if(v==='lay')openEdit('menu');else if(v==='admin'){openSheet('#admin');renderAdmin()}else if(v==='pass')toast('Боевой пропуск в разработке');else if(v==='settings'){openSheet('#settings');renderSettings()}else if(v==='online'){openSheet('#online');renderOnline()}else if(v==='clans'){openSheet('#clans');renderClans()}else if(v==='mail'){openSheet('#mail');renderMail()}}
 $('#lobby').addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)goTo(b.dataset.go)});
@@ -2397,7 +2405,9 @@ $('#lbDrag').addEventListener('pointerup',()=>lobbyDrag=null);$('#lbDrag').addEv
 
 /* --- рынок за алмазы: склад по 20 штук, лоты игроков, комиссия 29%, история цен --- */
 const PR_R=[null,[2,10],[10,75],[75,200],[200,600],[600,2000],[2000,6000]],FEE=.29,STOCK0=20;
-let STOCK={},LOTS=[],mkMine=false,skdId=null;
+let STOCK={},LOTS=[],mkMine=false,skdId=null,MF={rar:0,st:'any'};
+const stHas=sk=>{const o=PROF.own[sk.id];return (o&&o.st!=null)||LOTS.some(l=>l.skin===sk.id&&l.st!=null)};
+const passF=sk=>sk.std||((!MF.rar||sk.rar===MF.rar)&&(MF.st==='any'||(MF.st==='yes')===stHas(sk)));
 const vanilla=t=>({id:t+':0',wid:t,idx:0,rar:4,name:'Ваниль',van:true});
 const skinById=id=>{const[w,i]=String(id).split(':');if(isKn(w)&&KN[w])return +i?weaponSkins(w)[i-1]:vanilla(w);return W[w]?weaponSkins(w)[(+i)-1]:null};
 function basePrice(sk){const r=srand(hashS('price'+sk.id))();if(sk.van)return Math.round(800+r*700);const[lo,hi]=PR_R[Math.min(6,sk.rar)]||[5,10];return Math.round(lo+(hi-lo)*r)}
@@ -2417,17 +2427,23 @@ function renderMarket(){
  const hasOwn=id=>(isKn(id)?[vanilla(id)].concat(weaponSkins(id)):weaponSkins(id)).some(s=>owns(s.id));
  $('#mkInfo').innerHTML=`<span class="curb" style="display:inline-flex"><i class="ic-gem"></i><b>${PROF.gem}</b></span> Всё продаётся за алмазы. Комиссия при продаже — 29%.`;
  if(!$('#mkFilt')){$('#mkTabs').insertAdjacentHTML('beforebegin','<div id="mkFilt"><button data-f="0">Магазин</button><button data-f="1">Мои скины</button></div>');
-  $('#mkFilt').onclick=e=>{const b=e.target.closest('button');if(!b)return;mkMine=b.dataset.f==='1';if(mkMine)mkW='*';else if(mkW==='*')mkW='ak';renderMarket()}}
+  $('#mkFilt').onclick=e=>{const b=e.target.closest('button');if(!b)return;mkMine=b.dataset.f==='1';if(mkMine)mkW='*';else if(mkW==='*')mkW='all';renderMarket()}}
  $('#mkFilt').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.f==='1')===mkMine));
- const tabs=mkMine?['*'].concat(ids.filter(hasOwn)):ids;if(!tabs.includes(mkW))mkW=tabs[0];
- $('#mkTabs').innerHTML=tabs.map(id=>id==='*'?`<button data-v="*" aria-pressed="${mkW==='*'}">Все мои</button>`:`<button data-v="${id}" aria-pressed="${id===mkW}"><i>${wSil(id)}</i>${wName(id)}</button>`).join('');
+ const tabs=(mkMine?['*']:['all']).concat(mkMine?ids.filter(hasOwn):ids);if(!tabs.includes(mkW))mkW=tabs[0];
+ if(!$('#mkF')){$('#mkTabs').insertAdjacentHTML('beforebegin','<div id="mkF"><label>Оружие<select id="mfW"></select></label><label>Редкость<select id="mfR"></select></label><label>Счётчик (ST)<select id="mfS"><option value="any">не важно</option><option value="yes">со счётчиком</option><option value="no">без счётчика</option></select></label></div>');
+  $('#mfW').onchange=e=>{mkW=e.target.value;renderMarket()};$('#mfR').onchange=e=>{MF.rar=+e.target.value;renderMarket()};$('#mfS').onchange=e=>{MF.st=e.target.value;renderMarket()}}
+ $('#mfW').innerHTML=tabs.map(id=>`<option value="${id}" ${id===mkW?'selected':''}>${id==='*'?'Все мои':id==='all'?'Все стволы и ножи':wName(id)}</option>`).join('');
+ $('#mfR').innerHTML='<option value="0">все</option>'+[1,2,3,4,5,6].map(r=>`<option value="${r}" ${MF.rar===r?'selected':''}>${RAR[r].n}</option>`).join('');$('#mfS').value=MF.st;
+ $('#mkTabs').innerHTML=tabs.map(id=>id==='*'||id==='all'?`<button data-v="${id}" aria-pressed="${mkW===id}">${id==='*'?'Все мои':'Все'}</button>`:`<button data-v="${id}" aria-pressed="${id===mkW}"><i>${wSil(id)}</i>${wName(id)}</button>`).join('');
  let html='';
- if(mkW==='*'){const list=Object.keys(PROF.own).map(skinById).filter(Boolean).sort((a,b)=>b.rar-a.rar);
+ if(mkW==='all'){const list=ids.flatMap(id=>(isKn(id)?[vanilla(id)]:[]).concat(weaponSkins(id))).filter(passF).sort((a,b)=>b.rar-a.rar||mPrice(a.id)-mPrice(b.id));
+  html=list.slice(0,150).map(sk=>skCard(sk.wid,sk,true)).join('')||'<p class="note">Ничего не найдено — поменяй фильтры.</p>'}
+ else if(mkW==='*'){const list=Object.keys(PROF.own).map(skinById).filter(Boolean).filter(passF).sort((a,b)=>b.rar-a.rar);
   html=list.map(sk=>skCard(sk.wid,sk,true)).join('')||'<p class="note">Пока пусто. Открой кейс или купи скин.</p>';
   if(PROF.excl)html=`<div class="sk" style="--rc:${RAR[7].c}"><div class="pv" style="display:grid;place-items:center;font:700 22px var(--disp);color:#ffe9a0">EXCLUSIVE ×${PROF.excl}</div><span class="rr">Exclusive</span><b>Жетон эксклюзива</b><span class="pr">Скин придёт в обновлении</span></div>`+html}
- else if(isKn(mkW)){const list=[{id:'knife:0',idx:0,rar:0,name:'Стандартный нож',std:true},vanilla(mkW)].concat(weaponSkins(mkW)).filter(s=>!mkMine||s.std||owns(s.id));
+ else if(isKn(mkW)){const list=[{id:'knife:0',idx:0,rar:0,name:'Стандартный нож',std:true},vanilla(mkW)].concat(weaponSkins(mkW)).filter(s=>!mkMine||s.std||owns(s.id)).filter(passF);
   html=list.map(sk=>skCard(sk.std?'knife':mkW,sk)).join('')}
- else{const list=[{id:mkW+':0',idx:0,rar:0,name:'Стандартный',std:true}].concat(weaponSkins(mkW)).filter(s=>!mkMine||s.std||owns(s.id));html=list.map(sk=>skCard(mkW,sk)).join('')}
+ else{const list=[{id:mkW+':0',idx:0,rar:0,name:'Стандартный',std:true}].concat(weaponSkins(mkW)).filter(s=>!mkMine||s.std||owns(s.id)).filter(passF);html=list.map(sk=>skCard(mkW,sk)).join('')}
  $('#mkGrid').innerHTML=html;syncCur()}
 $('#mkTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mkW=b.dataset.v;renderMarket()});
 $('#mkGrid').addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;const a=b.dataset.a;
@@ -2642,11 +2658,11 @@ function saveRoomDoc(started){if(!CAP.db||!NET.code||!amHost())return;const c=NE
 async function joinRoom(code,cfg,pass){const room=await netRoom();if(!room)return toast('Онлайн недоступен');if(NET.r)await leaveRoom();
  if(!cfg&&CAP.db){try{const s=await CAP.db.doc('rooms/'+code).get();if(s.exists){const d=s.data();if((d.n||0)>=(d.max||10))return toast('Комната заполнена')}}catch(e){}}
  try{NET.r=await room.join('sx-'+code)}catch(e){return toast('Не удалось войти: '+(e&&e.message))}
- NET.code=code;NET.cfg=cfg||null;NET.me='';NET.hits=[];NET.kills=[];NET.seen={};NET.kseen={};
+ NET.code=code;NET.cfg=cfg||null;NET.unsub.push(NET.r.on('sig',m=>safe(()=>onSig(m),'sig'),()=>{}));NET.me='';NET.hits=[];NET.kills=[];NET.seen={};NET.kseen={};
  NET.unsub.push(NET.r.onPeers(ch=>{NET.peers=ch.peers.slice();const me=ch.peers.find(p=>p.isMe&&p.sameTab)||ch.peers.find(p=>p.isMe);if(me)NET.me=me.peer;
   const h=NET.peers.find(p=>p.peer===hostPeer());if(h&&h.presence&&h.presence.cfg&&!amHost())NET.cfg=h.presence.cfg;
   if(h&&h.presence&&h.presence.go&&!NET.inMatch&&NET.startedAt!==h.presence.go.t0&&Date.now()-h.presence.go.t0<20000)startOnline(h.presence.go);
-  if(NET.inMatch)netPeers();else if(!$('#online').hidden)renderOnline();if(amHost())saveRoomDoc()},()=>{}));
+  if(NET.inMatch){netPeers();safe(voiceSync,'voice')}else if(!$('#online').hidden)renderOnline();if(amHost())saveRoomDoc()},()=>{}));
  const ts=NET.peers.filter(p=>p.presence&&p.presence.team),ct=ts.filter(p=>p.presence.team==='CT').length,t=ts.length-ct;
  await NET.r.presence({sid:PROF.sid,nick:PROF.nick,team:ct<=t?'CT':'T',host:!!cfg,cfg:cfg||null,pw:pass||''}).catch(()=>{});
  if(cfg)saveRoomDoc();openSheet('#online');renderOnline()}
@@ -2670,7 +2686,7 @@ function netRoster(){// вызывается из newMatch: вместо бот�
 function netPeers(){for(const p of NET.peers){const a=NET.ag.get(p.peer),s=p.presence&&p.presence.s;if(!a){if(p.peer!==NET.me&&p.presence&&p.presence.sid&&mode==='game'){const b=makeAgent(p.presence.team||'T',false,p.presence.nick||'Игрок');b.remote=true;b.peer=p.peer;b.net={x:0,y:0,z:0};b.alive=false;NET.ag.set(p.peer,b);agents.push(b);resetSlots(b);give(b,pistolFor(b.team));renderAlive()}continue}
   if(s){a.net={x:s[0],y:s[1],z:s[2]};a.yaw=s[3];a.pitch=s[4];a.crouch=s[5];if(s[6]&&!a.alive&&(clock-a.deadAt>1)){a.alive=true;a.hp=100;a.fall=0;a.pos.set(s[0],s[1],s[2]);if(a.mesh)a.mesh.rotation.x=0;renderAlive()}
    if(s[7]&&W[s[7]]&&(!a.slots[a.cur]||a.slots[a.cur].id!==s[7])){give(a,s[7])}}
-  const hs=(p.presence&&p.presence.h)||[];for(const h of hs){if(h.i<=(NET.seen[p.peer]||0))continue;NET.seen[p.peer]=h.i;if(h.t===NET.me&&player.alive&&state==='live')damage(player,h.d,a||player,!!h.h,h.w,!!h.b)}
+  safe(()=>netComms(p,a),'comms');const hs=(p.presence&&p.presence.h)||[];for(const h of hs){if(h.i<=(NET.seen[p.peer]||0))continue;NET.seen[p.peer]=h.i;if(h.t===NET.me&&player.alive&&state==='live')damage(player,h.d,a||player,!!h.h,h.w,!!h.b)}
   const ks=(p.presence&&p.presence.k)||[];for(const k of ks){if(k.i<=(NET.kseen[p.peer]||0))continue;NET.kseen[p.peer]=k.i;if(!a)continue;
    const killer=k.by===NET.me?player:NET.ag.get(k.by);a.alive=false;a.deaths++;a.deadAt=clock;a.fall=0;a.fallDir=k.h?1:-1;
    if(killer){killer.kills++;score[killer.team]++;if(killer.isPlayer)safe(()=>onPlayerKill(k.w,k.h,!onGround,k.b),'stat');feed(killer,a,k.w||'knife',!!k.h,false,!!k.b)}renderAlive();
@@ -2682,7 +2698,7 @@ function netTick(dt){if(!NET.inMatch||!NET.r)return;NET.last+=dt;
  for(const a of NET.ag.values()){if(!a.alive){updBot(a,dt);continue}const n=a.net,k=Math.min(1,dt*12),ox=a.pos.x,oz=a.pos.z;a.pos.x+=(n.x-a.pos.x)*k;a.pos.y+=(n.y-a.pos.y)*k;a.pos.z+=(n.z-a.pos.z)*k;
   if(Math.hypot(n.x-a.pos.x,n.z-a.pos.z)>6)a.pos.set(n.x,n.y,n.z);const m=a.mesh;if(m){m.rotation.x=0;m.position.set(a.pos.x,a.pos.y,a.pos.z);m.rotation.y=a.yaw;poseBot(a,Math.hypot(a.pos.x-ox,a.pos.z-oz)>dt*.5)}}
  if(NET.last<.1&&!NET.dirty)return;NET.last=0;NET.dirty=false;const p=player,s=p.slots[p.cur];
- NET.r.presence({s:[+p.pos.x.toFixed(2),+p.pos.y.toFixed(2),+p.pos.z.toFixed(2),+p.yaw.toFixed(3),+p.pitch.toFixed(3),+p.crouch.toFixed(2),p.alive?1:0,s?s.id:''],h:NET.hits,k:NET.kills}).catch(()=>{})}
+ NET.r.presence({c:COMM.out,pg:COMM.outP,s:[+p.pos.x.toFixed(2),+p.pos.y.toFixed(2),+p.pos.z.toFixed(2),+p.yaw.toFixed(3),+p.pitch.toFixed(3),+p.crouch.toFixed(2),p.alive?1:0,s?s.id:''],h:NET.hits,k:NET.kills}).catch(()=>{})}
 /* --- конец матча: награды и голосование за карту --- */
 let VOTE=null;
 function startVote(){const keys=Object.keys(MAPS).sort(()=>Math.random()-.5).slice(0,3);const v={opts:keys,cnt:keys.map(()=>0),mine:-1,t:15,done:false};VOTE=v;
@@ -2707,6 +2723,49 @@ function renderSettings(){const row=(k,label,min,max,step,fmt)=>`<label class="s
 $('#setB').addEventListener('input',e=>{const el=e.target.closest('[data-s]');if(!el)return;const k=el.dataset.s,v=el.tagName==='SELECT'?(isNaN(+el.value)?el.value:+el.value):+el.value;SET[k]=v;
  const b=$(`[data-v="${k}"]`);if(b)b.textContent=k==='fov'?v+'°':k==='res'||k==='vol'?v+'%':v;saveSet();applySet()});
 function applySet(){qNow='';applyQ.done=false;safe(()=>applyQ(cfgQ==='auto'?(isTouch?'low':'med'):cfgQ),'q');if(MASTER)MASTER.gain.value=SET.vol/100;vmHand.scale.x=SET.hand==='L'?-1:1;$('#fpsC').hidden=!SET.showFps;if(!SET.fog)scene.fog=null}
+/* ================= СВЯЗЬ В МАТЧЕ: чат, метки на карте, голос для команды ================= */
+const COMM={log:[],pings:[],seq:0,out:[],outP:[],seenC:{},seenP:{},team:true};
+const BOT_TALK={kill:['есть!','минус один','+1','чисто'],die:['минус наш','осторожно, он там','отомщу'],start:['го B','держу мид','давайте A','я на ящиках','gl hf']};
+function chatAdd(nick,team,text,teamOnly,sys){COMM.log.push({nick,team,text,teamOnly,sys,t:performance.now()});COMM.log=COMM.log.slice(-8);drawChat()}
+function drawChat(){const now=performance.now(),open=!$('#chatIn').hidden;$('#chatLog').innerHTML=COMM.log.filter(m=>open||now-m.t<9000).map(m=>`<div class="${m.sys?'sys':''}"><b class="${m.team==='CT'?'ct':'t'}">${m.teamOnly?'[команда] ':''}${esc(m.nick)}:</b> ${esc(m.text)}</div>`).join('')}
+setInterval(()=>{if(mode==='game')drawChat()},1500);
+function openChat(team){COMM.team=team;const i=$('#chatIn');i.hidden=false;i.placeholder=team?'Сообщение команде (Enter)':'Сообщение всем (Enter)';firing=false;if(document.pointerLockElement)document.exitPointerLock();setTimeout(()=>i.focus(),0);drawChat()}
+function sendChat(text){text=text.trim().slice(0,120);if(!text)return;chatAdd(player.name,player.team,text,COMM.team);
+ if(NET.inMatch){COMM.out.push({i:++COMM.seq,x:text,tm:COMM.team?1:0});COMM.out=COMM.out.slice(-6);NET.dirty=true}
+ else if(Math.random()<.5)setTimeout(()=>botSay('start',player.team),900)}
+$('#chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){sendChat(e.target.value);e.target.value='';e.target.hidden=true;drawChat();if(!isTouch)tryLock()}if(e.key==='Escape'){e.target.hidden=true;drawChat()}});
+function botSay(kind,team,who){if(NET.inMatch)return;const bots=agents.filter(a=>!a.isPlayer&&!a.remote&&a.team===(team||player.team)&&(who?a===who:a.alive));if(!bots.length)return;const b=who||bots[Math.random()*bots.length|0],L=BOT_TALK[kind];chatAdd(b.name,b.team,L[Math.random()*L.length|0],true)}
+// метки: точка, куда смотрит прицел; видны своей команде в мире и на миникарте
+const pingTex=mkTex(64,64,g=>{g.fillStyle='#ffd23f';g.beginPath();g.moveTo(32,60);g.lineTo(10,22);g.arc(32,22,22,Math.PI,0);g.closePath();g.fill();g.fillStyle='#1b1b1b';g.beginPath();g.arc(32,22,8,0,7);g.fill()});
+function placePing(){if(!player||!player.alive)return;const o=cam.position,d=new THREE.Vector3(0,0,-1).applyQuaternion(cam.quaternion),tr=traceRay(o.x,o.y,o.z,d.x,d.y,d.z,120);let t=Math.min(tr.floorT,120);if(tr.segs.length)t=Math.min(t,tr.segs[0].t0);t=Math.max(1,t-.15);
+ const p=[o.x+d.x*t,o.y+d.y*t,o.z+d.z*t];addPing(p,player.name,player.team);blip(1200,.06,.08);if(NET.inMatch){COMM.outP.push({i:++COMM.seq,p:p.map(v=>+v.toFixed(2))});COMM.outP=COMM.outP.slice(-4);NET.dirty=true}
+ else if(Math.random()<.6)setTimeout(()=>botSay('start',player.team),600)}
+function addPing(p,nick,team){if(team!==player.team)return;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:pingTex,depthTest:false,transparent:true}));sp.position.set(p[0],p[1]+.9,p[2]);sp.scale.set(.9,.9,.9);sp.renderOrder=9;scene.add(sp);
+ COMM.pings.push({sp,p,t:clock,nick});if(COMM.pings.length>6){const old=COMM.pings.shift();scene.remove(old.sp)}chatAdd(nick,team,'поставил метку',true,true)}
+function updPings(){for(const k of COMM.pings.slice()){const age=clock-k.t;if(age>7){scene.remove(k.sp);COMM.pings.splice(COMM.pings.indexOf(k),1);continue}const d=cam.position.distanceTo(k.sp.position),s=Math.max(.6,d*.045)*(1+.15*Math.sin(age*8));k.sp.scale.set(s,s,s)}}
+function drawPingsMini(s){for(const k of COMM.pings){mg.fillStyle='#ffd23f';mg.beginPath();mg.arc(k.p[0]*s,k.p[2]*s,5,0,7);mg.fill();mg.strokeStyle='#1b1b1b';mg.lineWidth=2;mg.stroke()}}
+// приём чата и меток из онлайна (тот же механизм presence, что и попадания)
+function netComms(p,a){const pr=p.presence||{},team=a?a.team:'CT';
+ for(const m of pr.c||[]){if(m.i<=(COMM.seenC[p.peer]||0))continue;COMM.seenC[p.peer]=m.i;if(m.tm&&team!==player.team)continue;chatAdd(pr.nick||'Игрок',team,m.x,!!m.tm)}
+ for(const m of pr.pg||[]){if(m.i<=(COMM.seenP[p.peer]||0))continue;COMM.seenP[p.peer]=m.i;if(team===player.team)addPing(m.p,pr.nick||'Игрок',team)}}
+// голосовой чат только для своей команды: WebRTC между тиммейтами, сигналы через комнату
+const VOICE={on:false,stream:null,pcs:new Map(),talk:false};
+async function voiceToggle(){if(!NET.inMatch||!NET.r)return toast('Голосовой чат работает в онлайн-матче');
+ if(VOICE.on){voiceStop();return}
+ try{VOICE.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}})}catch(e){return toast('Нет доступа к микрофону: '+(e&&e.name||e))}
+ VOICE.on=true;VOICE.stream.getAudioTracks().forEach(t=>t.enabled=false);NET.r.presence({vo:1}).catch(()=>{});voiceSync();toast('Голос включён: держи V (или кнопку 🎙) чтобы говорить');$('#tVoice').classList.add('on')}
+function voiceStop(){VOICE.on=false;for(const pc of VOICE.pcs.values())try{pc.close()}catch(e){}VOICE.pcs.clear();if(VOICE.stream)VOICE.stream.getTracks().forEach(t=>t.stop());VOICE.stream=null;if(NET.r)NET.r.presence({vo:0}).catch(()=>{});$('#tVoice').classList.remove('on')}
+function voiceTalk(on){VOICE.talk=on;if(VOICE.stream)VOICE.stream.getAudioTracks().forEach(t=>t.enabled=on);$('#talkI').hidden=!on}
+function mkPC(peer){const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});VOICE.pcs.set(peer,pc);if(VOICE.stream)VOICE.stream.getTracks().forEach(t=>pc.addTrack(t,VOICE.stream));
+ pc.onicecandidate=e=>{if(e.candidate)NET.r.emit('sig',{to:peer,ice:e.candidate.toJSON()}).catch(()=>{})};
+ pc.ontrack=e=>{let el=document.getElementById('au-'+peer);if(!el){el=document.createElement('audio');el.id='au-'+peer;el.autoplay=true;document.body.appendChild(el)}el.srcObject=e.streams[0]};return pc}
+async function voiceSync(){if(!VOICE.on||!NET.r)return;for(const p of NET.peers){if(p.peer===NET.me||!p.presence||!p.presence.vo)continue;const a=NET.ag.get(p.peer);if(!a||a.team!==player.team||VOICE.pcs.has(p.peer))continue;
+  if(NET.me<p.peer){const pc=mkPC(p.peer);const of=await pc.createOffer();await pc.setLocalDescription(of);NET.r.emit('sig',{to:p.peer,sdp:pc.localDescription.toJSON()}).catch(()=>{})}}}
+async function onSig(m){const d=m.data||{};if(m.isMe||d.to!==NET.me||!VOICE.on)return;let pc=VOICE.pcs.get(m.peer);
+ try{if(d.sdp){if(!pc)pc=mkPC(m.peer);await pc.setRemoteDescription(d.sdp);if(d.sdp.type==='offer'){const an=await pc.createAnswer();await pc.setLocalDescription(an);NET.r.emit('sig',{to:m.peer,sdp:pc.localDescription.toJSON()}).catch(()=>{})}}
+  else if(d.ice&&pc)await pc.addIceCandidate(d.ice)}catch(e){}}
+addEventListener('keydown',e=>{if(mode!=='game'||!$('#chatIn').hidden)return;if(e.code==='KeyY'){e.preventDefault();openChat(false)}if(e.code==='KeyU'||e.code==='Enter'){e.preventDefault();openChat(true)}if(e.code==='KeyF')placePing();if(e.code==='KeyV'&&VOICE.on&&!e.repeat)voiceTalk(true)});
+addEventListener('keyup',e=>{if(e.code==='KeyV')voiceTalk(false)});
 function stopVote(){if(VOTE){clearInterval(VOTE.iv);VOTE=null}}
 
 requestAnimationFrame(loop);safe(()=>buildMap(cfgMap),'map');safe(showLobby,'lobby');safe(applySet,'set');safe(applyLayout,'layout');safe(resize,'resize');

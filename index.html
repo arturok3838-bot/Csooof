@@ -370,6 +370,7 @@ body.rot .sheet{position:absolute}
 .ovl{position:fixed;inset:0;z-index:75;background:rgba(6,7,9,.8);display:grid;place-items:center;padding:16px}.ovl .box{background:var(--panel,#16181c);border:1px solid var(--line);padding:16px;width:min(420px,100%);display:flex;flex-direction:column;gap:10px;max-height:90vh;overflow:auto}.ovl b{font-family:var(--disp);font-size:22px;font-weight:400}.ovl input[type=password]{background:#0f1113;border:1px solid var(--line);color:var(--fg);padding:10px;font-size:16px}
 .chk{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.chk input{width:20px;height:20px;accent-color:var(--accent)}
 #hud #timer{pointer-events:auto}
+.rep{background:none;border:1px solid var(--line);color:var(--danger);padding:0 5px;font-size:11px;margin-left:4px;cursor:pointer}
 #menu .back{align-self:flex-start;padding:8px 14px;border:1px solid var(--line);background:rgba(255,255,255,.05)}
 
 @media (prefers-reduced-motion:reduce){#banner,#dmg,#hitm{transition:none}}
@@ -568,7 +569,7 @@ body.rot .sheet{position:absolute}
     </div>
     <p class="note" id="adMsg"></p>
     <div class="sec-h">Цены и склад рынка</div><div class="form"><label>Оружие<select id="adPW"></select></label><label>Скин<select id="adPS"></select></label><label>Цена, алмазы<input id="adPP" type="number" min="1"></label><label>На складе, шт.<input id="adPN" type="number" min="0"></label><button class="btnp" id="adPGo">Сохранить</button></div>
-    <div class="sec-h">Игроки</div><div class="lst" id="adPl"></div><div class="sec-h">Баны</div><div class="lst" id="adBn"></div><div class="sec-h">Последние операции</div><div class="lst" id="adTx"></div>
+    <div class="sec-h">Игроки</div><div class="lst" id="adPl"></div><div class="sec-h">Баны</div><div class="lst" id="adBn"></div><div class="sec-h">Античит: подозрения и автобаны</div><div class="lst" id="adAc"></div><div class="sec-h">Последние операции</div><div class="lst" id="adTx"></div>
     <div class="sec-h">Последние выдачи</div><div class="lst" id="adGr"></div>
   </div>
 </div>
@@ -2221,7 +2222,7 @@ function hud(){
 }
 // Таблица игроков: убийства / помощи / смерти по командам
 function boardHTML(){
- const row=a=>`<tr class="${a.isPlayer?'me':''} ${a.alive?'':'dead'}"><td>${a.name}</td><td>${a.kills}</td><td>${a.assists}</td><td>${a.deaths}</td><td>$${a.money}</td></tr>`;
+ const row=a=>`<tr class="${a.isPlayer?'me':''} ${a.alive?'':'dead'}"><td>${a.name}${a.remote?` <button class="rep" data-rep="${esc(a.peer)}" title="Пожаловаться">⚑</button>`:''}</td><td>${a.kills}</td><td>${a.assists}</td><td>${a.deaths}</td><td>$${a.money}</td></tr>`;
  const tbl=tm=>{const list=agents.filter(a=>a.team===tm).sort((x,y)=>y.kills-x.kills||y.assists-x.assists||x.deaths-y.deaths);
   return `<div class="tcap"><span class="${tm==='CT'?'ct':'t'}">${tm==='CT'?'Спецназ':'Террористы'}</span><span class="mono ${tm==='CT'?'ct':'t'}">${score[tm]}</span></div><table><tr><th>Игрок</th><th>Убийства</th><th>Помощи</th><th>Смерти</th><th>Деньги</th></tr>${list.map(row).join('')}</table>`};
  return tbl('CT')+tbl('T')}
@@ -2582,6 +2583,7 @@ function showBan(b){const o=$('#banned');o.hidden=!b;if(b){$('#banR').textConten
  db.collection('grants').where('to','==',PROF.sid).onSnapshot(s=>s.docs.forEach(d=>applyGrant(d.id,d.data())),()=>{});
  db.collection('payouts').where('to','==',PROF.sid).onSnapshot(s=>s.docs.forEach(d=>applyGrant(d.id,{...d.data(),kind:'payout'})),()=>{});
  db.doc('bans/'+PROF.sid).onSnapshot(s=>showBan(s.exists?s.data():null),()=>{});
+ if(!(CAP.admin||ADM))db.collection('acban').where('sid','==',PROF.sid).onSnapshot(s=>{const b=s.docs.map(d=>d.data()).find(x=>!x.cleared);if(b)showBan({reason:'античит: '+b.why})},()=>{});
  db.collection('stock').onSnapshot(s=>{STOCK={};s.docs.forEach(d=>{STOCK[d.id]=d.data()||{}});if(!$('#market').hidden)renderMarket()},()=>{});
  db.collection('listings').onSnapshot(s=>{LOTS=s.docs.map(d=>({id:d.id,...(d.data()||{})}));if(!$('#market').hidden)renderMarket()},()=>{});
  db.collection('msgs').orderBy('at','desc').limit(60).onSnapshot(s=>{MSGS=s.docs.map(d=>({id:d.id,...(d.data()||{})})).filter(m=>m.to==='all'||m.to===PROF.sid||m.from===PROF.sid);renderMailBadge();if(!$('#mail').hidden)renderMail()},()=>{});
@@ -2626,12 +2628,14 @@ function renderAdmin(){
  if(!CAP.db){$('#adPl').innerHTML='<p class="note">Админ-панель работает в опубликованной игре на claude.ai, когда ты вошёл как владелец.</p>';return}
  CAP.db.collection('players').orderBy('seen','desc').limit(80).get().then(s=>{$('#adPl').innerHTML=s.docs.map(d=>{const p=d.data()||{};return `<div><b class="mono" style="color:var(--fg)">${esc(p.sid)}</b><span>${esc(p.nick)}</span><span class="mono">ур. ${esc(p.lvl)} · <i class="ic-gem"></i>${esc(p.gem)} · <i class="ic-cu"></i>${esc(p.cu)}${p.clan?' · клан '+esc(p.clan):''}</span><span class="mono">${p.seen?fmtD(p.seen):''}</span><button class="btns" data-sid="${esc(p.sid)}">Выбрать</button></div>`}).join('')||'<p class="note">Пока никто не заходил.</p>'}).catch(e=>{$('#adPl').innerHTML=`<p class="note">Не удалось загрузить: ${esc(e&&e.message)}</p>`});
  CAP.db.collection('bans').limit(60).get().then(s=>{$('#adBn').innerHTML=s.docs.map(d=>{const b=d.data()||{};return `<div><b class="mono">ID ${esc(d.id)}</b><span class="note">${esc(b.reason||'')}</span><span class="mono">${b.at?fmtD(b.at):''}</span><button class="btns" data-unban="${esc(d.id)}">Разбанить</button></div>`}).join('')||'<p class="note">Банов нет.</p>'}).catch(()=>{});
+ Promise.all([CAP.db.collection('acban').limit(60).get(),CAP.db.collection('ac').orderBy('at','desc').limit(40).get()]).then(([b,r])=>{$('#adAc').innerHTML=b.docs.filter(d=>!d.data().cleared).map(d=>{const x=d.data();return `<div><b class="mono" style="color:var(--danger)">АВТОБАН ID ${esc(x.sid)}</b><span>${esc(x.why)}</span><span class="mono">${fmtD(x.at)}</span><button class="btns" data-acun="${esc(d.id)}">Снять</button></div>`}).join('')+r.docs.map(d=>{const x=d.data();return `<div><span class="mono">${fmtD(x.at)}</span><b>${esc(x.nick)} · ID ${esc(x.sid)}</b><span>${esc(x.why)}</span><span class="note">свидетель ${esc(x.by)}</span></div>`}).join('')||'<p class="note">Подозрений нет.</p>'}).catch(()=>{});
  CAP.db.collection('tx').orderBy('at','desc').limit(40).get().then(s=>{$('#adTx').innerHTML=s.docs.map(d=>{const t=d.data()||{};return `<div><span class="mono">${fmtD(t.at||0)}</span><b>ID ${esc(t.sid)}</b><span>${esc(t.kind)} ${t.dg?(t.dg>0?'+':'')+t.dg+' алм.':''} ${esc(t.item||'')}</span><span class="mono">баланс ${esc(t.gem)} алм. · ${esc(t.cu)} меди</span></div>`}).join('')||'<p class="note">Операций пока нет.</p>'}).catch(()=>{});
  CAP.db.collection('grants').orderBy('at','desc').limit(30).get().then(s=>{$('#adGr').innerHTML=s.docs.map(d=>{const g=d.data()||{};const sk=g.skin?skinById(g.skin):null;return `<div><span class="mono">${fmtD(g.at||0)}</span><b>ID ${esc(g.to)}</b><span>${g.mode==='set'?'установить ':''}${g.cu!==''&&g.cu!=null&&(g.mode==='set'||+g.cu)?(+g.cu)+' меди ':''}${g.gem!==''&&g.gem!=null&&(g.mode==='set'||+g.gem)?(+g.gem)+' алмазов ':''}${sk?esc(wName(sk.wid)+' · '+sk.name):''}</span><span class="note">${esc(g.note||'')}</span><button class="btns" data-del="${esc(d.id)}">Удалить</button></div>`}).join('')||'<p class="note">Выдач ещё не было.</p>'}).catch(()=>{})}
 function fillSk(ws,ss){const w=$(ws).value;$(ss).innerHTML=w?(isKn(w)?[vanilla(w)]:[]).concat(weaponSkins(w)).map(s=>`<option value="${s.id}">${RAR[s.rar].n} · ${esc(s.name)}</option>`).join(''):'<option value="">—</option>'}
 function showStock(){const id=$('#adPS').value;if(!id)return;$('#adPP').value=mPrice(id);$('#adPN').value=stockOf(id)}
 $('#adPl').onclick=e=>{const b=e.target.closest('[data-sid]');if(b){$('#adTo').value=b.dataset.sid;$('#adTo').focus()}};
 $('#adGr').onclick=e=>{const b=e.target.closest('[data-del]');if(!b||!CAP.db)return;CAP.db.doc('grants/'+b.dataset.del).delete().then(renderAdmin).catch(err=>toast('Не удалось: '+(err&&err.message)))};
+$('#adAc').onclick=e=>{const b=e.target.closest('[data-acun]');if(!b||!CAP.db)return;CAP.db.doc('acban/'+b.dataset.acun).update({cleared:true}).then(()=>{toast('Автобан снят');renderAdmin()})};
 $('#adBn').onclick=e=>{const b=e.target.closest('[data-unban]');if(!b||!CAP.db)return;CAP.db.doc('bans/'+b.dataset.unban).delete().then(()=>{toast('Разбанен');renderAdmin()})};
 const adId=()=>{const to=$('#adTo').value.trim();if(!/^(\d{8}|Dev_golda)$/.test(to)){$('#adMsg').textContent='ID — 8 цифр, игрок видит его в профиле в лобби.';return null}return to};
 function sendGrant(mode){const to=adId();if(!to)return;const cuV=$('#adCu').value.trim(),gmV=$('#adGem').value.trim();
@@ -2700,9 +2704,9 @@ function startOnline(go){NET.startedAt=go.t0;NET.inMatch=true;NET.cfg=go;cfgMode
 function netRoster(){// вызывается из newMatch: вместо ботов — люди из комнаты
  NET.ag.clear();for(const p of NET.peers){if(p.peer===NET.me||!p.presence||!p.presence.sid)continue;const a=makeAgent(p.presence.team||'T',false,p.presence.nick||'Игрок');a.remote=true;a.peer=p.peer;a.net={x:0,y:0,z:0};NET.ag.set(p.peer,a);agents.push(a)}}
 function netPeers(){for(const p of NET.peers){const a=NET.ag.get(p.peer),s=p.presence&&p.presence.s;if(!a){if(p.peer!==NET.me&&p.presence&&p.presence.sid&&mode==='game'){const b=makeAgent(p.presence.team||'T',false,p.presence.nick||'Игрок');b.remote=true;b.peer=p.peer;b.net={x:0,y:0,z:0};b.alive=false;NET.ag.set(p.peer,b);agents.push(b);resetSlots(b);give(b,pistolFor(b.team));renderAlive()}continue}
-  if(s){a.net={x:s[0],y:s[1],z:s[2]};a.yaw=s[3];a.pitch=s[4];a.crouch=s[5];if(s[6]&&!a.alive&&(clock-a.deadAt>1)){a.alive=true;a.hp=100;a.fall=0;a.pos.set(s[0],s[1],s[2]);if(a.mesh)a.mesh.rotation.x=0;renderAlive()}
+  if(s){safe(()=>acWatch(a,s,performance.now()),'ac');a.net={x:s[0],y:s[1],z:s[2]};a.yaw=s[3];a.pitch=s[4];a.crouch=s[5];if(s[6]&&!a.alive&&(clock-a.deadAt>1)){a.alive=true;a.hp=100;a.fall=0;a.pos.set(s[0],s[1],s[2]);if(a.mesh)a.mesh.rotation.x=0;renderAlive()}
    if(s[7]&&W[s[7]]&&(!a.slots[a.cur]||a.slots[a.cur].id!==s[7])){give(a,s[7])}}
-  safe(()=>netComms(p,a),'comms');const hs=(p.presence&&p.presence.h)||[];for(const h of hs){if(h.i<=(NET.seen[p.peer]||0))continue;NET.seen[p.peer]=h.i;if(h.t===NET.me&&player.alive&&state==='live')damage(player,h.d,a||player,!!h.h,h.w,!!h.b)}
+  safe(()=>netComms(p,a),'comms');const hs=(p.presence&&p.presence.h)||[];for(const h of hs){if(h.i<=(NET.seen[p.peer]||0))continue;NET.seen[p.peer]=h.i;if(h.t===NET.me&&player.alive&&state==='live'&&safe(()=>acHit(a,h),'ac',true))damage(player,h.d,a||player,!!h.h,h.w,!!h.b)}
   const ks=(p.presence&&p.presence.k)||[];for(const k of ks){if(k.i<=(NET.kseen[p.peer]||0))continue;NET.kseen[p.peer]=k.i;if(!a)continue;
    const killer=k.by===NET.me?player:NET.ag.get(k.by);a.alive=false;a.deaths++;a.deadAt=clock;a.fall=0;a.fallDir=k.h?1:-1;
    if(killer){killer.kills++;score[killer.team]++;if(killer.isPlayer)safe(()=>onPlayerKill(k.w,k.h,!onGround,k.b),'stat');feed(killer,a,k.w||'knife',!!k.h,false,!!k.b)}renderAlive();
@@ -2829,6 +2833,32 @@ function boostBot(b,dt){const B=b.boost;if(!B)return false;if(clock>B.t||!b.aliv
  if(B.stage==='lift'){b.crouch+=(0-b.crouch)*Math.min(1,dt*3);if(!onTop&&b.crouch<.05){b.boost=null}}
  b.pos.y=groundAt(b.pos.x,b.pos.z);m.rotation.x=0;m.position.set(b.pos.x,b.pos.y,b.pos.z);m.rotation.y=b.yaw;poseBot(b,B.stage==='go');return true}
 addEventListener('keydown',e=>{if(mode==='game'&&e.code==='KeyG'&&$('#chatIn').hidden)askBoost()});
+/* ================= АНТИЧИТ БЕЗ СЕРВЕРА: игроки в онлайн-матче проверяют друг друга ================= */
+// Каждый клиент следит за чужими позициями и попаданиями. Нарушение → отчёт в базу. 2 разных свидетеля за 15 минут → автобан.
+const AC={st:new Map(),sent:new Set()};
+const MAXSPD=6.2*1.05;
+function acWatch(a,s,now){if(!a||!s||NET.cheatOK)return;let t=AC.st.get(a.peer);if(!t){t={x:s[0],y:s[1],z:s[2],tm:now,spd:0,air:0,wall:0,alive:s[6]};AC.st.set(a.peer,t);return}
+ const dt=(now-t.tm)/1000;if(dt<.25)return;const d=Math.hypot(s[0]-t.x,s[2]-t.z),v=d/dt,respawn=!t.alive&&s[6];
+ if(!respawn&&s[6]&&d<25){if(v>MAXSPD*1.5)t.spd++;else t.spd=Math.max(0,t.spd-.5);if(t.spd>=3)acFlag(a,'скорость '+Math.round(v/MAXSPD*100)+'% от нормы')}
+ const g=groundAt(s[0],s[2]),onHead=agents.some(o=>o!==a&&o.alive&&Math.hypot(o.pos.x-s[0],o.pos.z-s[2])<.6);
+ if(s[6]&&!onHead&&s[1]-g>2.2){t.air+=dt;if(t.air>1.2)acFlag(a,'полёт: '+(s[1]-g).toFixed(1)+' м над землёй')}else t.air=0;
+ const fake={pos:{x:s[0],y:s[1],z:s[2]},isPlayer:false};if(s[6]&&inWall(fake)){t.wall+=dt;if(t.wall>.8)acFlag(a,'внутри стены')}else t.wall=0;
+ Object.assign(t,{x:s[0],y:s[1],z:s[2],tm:now,alive:s[6]})}
+// попадание по мне: проверяем урон, темп и стены между стрелком и мной
+function acHit(a,h){if(!a||a.isPlayer)return true;const w=W[h.w];if(!w){acFlag(a,'неизвестное оружие');return false}
+ const maxD=w.dmg*(w.hs||4)*(w.pellets||1)*1.05;if(h.d>maxD){acFlag(a,'урон '+h.d+' > '+Math.round(maxD));return false}
+ const now=performance.now();a.acShots=(a.acShots||[]).filter(t=>now-t<1000);a.acShots.push(now);if(a.acShots.length>Math.ceil(w.rpm/60*(w.pellets||1))+3){acFlag(a,'темп стрельбы');return false}
+ if(!w.melee&&shotBlocked(a.pos.x,a.pos.y+1.6,a.pos.z,player.pos.x,player.pos.y+1.1,player.pos.z,w.pen*1.15)&&shotBlocked(a.pos.x,a.pos.y+1.6,a.pos.z,player.pos.x,player.pos.y+1.6,player.pos.z,w.pen*1.15)){a.acWb=(a.acWb||0)+1;if(a.acWb>=3)acFlag(a,'попадания сквозь непробиваемые стены');return false}
+ if(w.melee&&flat(a.pos,player.pos)>3){acFlag(a,'нож с '+flat(a.pos,player.pos).toFixed(1)+' м');return false}
+ return true}
+function acFlag(a,why){const sid=NET.peers.find(p=>p.peer===a.peer);const id=sid&&sid.presence&&sid.presence.sid;if(!id||AC.sent.has(id+why.split(' ')[0]))return;AC.sent.add(id+why.split(' ')[0]);
+ toast('Античит: подозрение на '+a.name+' — '+why);if(!CAP.db)return;
+ CAP.db.collection('ac').add({sid:id,nick:a.name,why,by:PROF.sid,at:Date.now()}).catch(()=>{});
+ CAP.db.collection('ac').where('sid','==',id).get().then(s=>{const rec=s.docs.map(d=>d.data()).filter(r=>Date.now()-r.at<9e5);if(new Set(rec.map(r=>r.by)).size>=2)CAP.db.collection('acban').add({sid:id,why:rec.map(r=>r.why).slice(0,3).join('; '),at:Date.now()}).catch(()=>{})}).catch(()=>{})}
+// жалоба на игрока — уходит администратору в сообщения
+function reportPlayer(sid,nick){if(!CAP.db)return toast('Жалобы работают в онлайн-версии');
+ CAP.db.collection('msgs').add({to:ADMIN_ID,from:PROF.sid,nick:PROF.nick,text:`Жалоба на ${nick} (ID ${sid}) · карта ${MAPS[cfgMap].name}`,at:Date.now()}).then(()=>toast('Жалоба отправлена администратору')).catch(()=>toast('Не удалось отправить'))}
+document.addEventListener('click',e=>{const b=e.target.closest('button.rep');if(!b)return;const p=NET.peers.find(x=>x.peer===b.dataset.rep);if(p&&p.presence)reportPlayer(p.presence.sid,p.presence.nick);b.disabled=true});
 function stopVote(){if(VOTE){clearInterval(VOTE.iv);VOTE=null}}
 
 requestAnimationFrame(loop);safe(()=>buildMap(cfgMap),'map');safe(showLobby,'lobby');safe(applySet,'set');safe(()=>{admApply();renderLobby()},'adm');safe(applyLayout,'layout');safe(resize,'resize');

@@ -1170,7 +1170,8 @@ function moveAgent(a,dx,dz){const n=Math.max(1,Math.ceil(Math.max(Math.abs(dx),M
  for(let i=0;i<n;i++){a.pos.x+=sx;if(blocked(a.pos.x,a.pos.z,a.pos.y))a.pos.x-=sx;a.pos.z+=sz;if(blocked(a.pos.x,a.pos.z,a.pos.y))a.pos.z-=sz}}
 // Анти-прохождение сквозь стены: если агент оказался внутри стены — телепорт на последнюю честную точку с пиксельным эффектом
 function inWall(a){if(a.isPlayer&&headGround(a)>=0)return false;const cx=Math.floor(a.pos.x/CS),cz=Math.floor(a.pos.z/CS),h=cellH(cx,cz);return h>=50||(h>a.pos.y+.7&&!world.elev[cz*world.w+cx])||(world.elev[cz*world.w+cx]&&h>a.pos.y+.7)}
-function wallGuard(a){if(!a.alive)return;if(inWall(a)){if(a.safe){const o=a.pos.clone();a.pos.copy(a.safe);a.vx=a.vz=0;a.vy=0;safe(()=>{tpFx(o.x,o.y,o.z);tpFx(a.pos.x,a.pos.y,a.pos.z)},'tpfx');if(a.isPlayer)blip(300,.12,.08)}return}
+const WALL_TP=false; // телепорт назад из стены временно выключен
+function wallGuard(a){if(!WALL_TP||!a.alive)return;if(inWall(a)){if(a.safe){const o=a.pos.clone();a.pos.copy(a.safe);a.vx=a.vz=0;a.vy=0;safe(()=>{tpFx(o.x,o.y,o.z);tpFx(a.pos.x,a.pos.y,a.pos.z)},'tpfx');if(a.isPlayer)blip(300,.12,.08)}return}
  if(!a.safe)a.safe=a.pos.clone();else if(!blocked(a.pos.x,a.pos.z,a.pos.y))a.safe.copy(a.pos)}
 const TPFX=[],tpGeo=new THREE.BoxGeometry(.09,.09,.09),tpMats=[0x7df9ff,0xffffff,0x3fa9ff,0xb388ff].map(c=>new THREE.MeshBasicMaterial({color:c,transparent:true}));
 function tpFx(x,y,z){for(let i=0;i<28;i++){const m=new THREE.Mesh(tpGeo,new THREE.MeshBasicMaterial({color:[0x7df9ff,0xffffff,0x3fa9ff,0xb388ff][i%4],transparent:true}));m.position.set(x+rnd(-.35,.35),y+rnd(0,1.8),z+rnd(-.35,.35));m.userData.v=new THREE.Vector3(rnd(-.6,.6),rnd(.4,2.2),rnd(-.6,.6));m.userData.t=0;scene.add(m);TPFX.push(m)}while(TPFX.length>160)scene.remove(TPFX.shift())}
